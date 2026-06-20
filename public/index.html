@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحدي الأوراق الملكي 🃏</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Tajawal', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .card-glow { box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); transition: all 0.3s ease; }
+        .card-glow:hover { transform: translateY(-10px) scale(1.05); box-shadow: 0 0 25px rgba(99, 102, 241, 0.8); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4">
+
+    <div id="lobby-screen" class="max-w-md w-full mx-auto my-auto bg-slate-800/80 p-6 rounded-2xl border border-slate-700 shadow-2xl backdrop-blur-md text-center">
+        <h1 class="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">👑 تحدي الأوراق الملكي</h1>
+        <p class="text-slate-400 text-sm mb-6">أنشئ غرفة وتحدَّ أصدقاءك في لعبة ذكاء وحظ سريعة</p>
+        
+        <button id="btn-create" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-bold py-3 px-6 rounded-xl shadow-lg transition-all mb-4 transform active:scale-95">
+            إنشاء غرفة جديدة ✨
+        </button>
+        
+        <div class="flex items-center my-4">
+            <div class="flex-1 h-px bg-slate-700"></div>
+            <span class="px-3 text-slate-500 text-sm">أو انضم لصديق</span>
+            <div class="flex-1 h-px bg-slate-700"></div>
+        </div>
+
+        <div class="flex gap-2">
+            <input id="input-room" type="text" placeholder="أدخل رمز الغرفة هنا" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-center uppercase tracking-widest font-bold focus:outline-none focus:border-indigo-500">
+            <button id="btn-join" class="bg-slate-700 hover:bg-slate-600 font-bold px-6 rounded-xl transition-all">انضمام</button>
+        </div>
+    </div>
+
+    <div id="waiting-screen" class="hidden max-w-md w-full mx-auto my-auto bg-slate-800 p-6 rounded-2xl border border-slate-700 text-center shadow-xl">
+        <div class="animate-spin text-4xl mb-4 inline-block text-indigo-500">⏳</div>
+        <h2 class="text-xl font-bold mb-2">في انتظار انضمام المنافس...</h2>
+        <p class="text-slate-400 text-sm mb-6">شارك هذا الرابط مع صديقك ليدخل معك مباشرة:</p>
+        
+        <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 flex items-center justify-between mb-4">
+            <span id="room-link" class="text-xs text-indigo-400 font-mono truncate select-all px-2"></span>
+            <button id="btn-copy" class="bg-indigo-600 hover:bg-indigo-500 text-xs py-1.5 px-3 rounded-lg font-bold transition-all shrink-0">نسخ الرابط</button>
+        </div>
+        <p class="text-xs text-slate-500">رمز الغرفة المباشر: <span id="room-code-display" class="font-bold text-slate-300"></span></p>
+    </div>
+
+    <div id="game-screen" class="hidden max-w-4xl w-full mx-auto flex-1 flex flex-col justify-between py-2">
+        <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/60 flex justify-between items-center">
+            <div>
+                <span class="text-xs text-rose-400 uppercase tracking-wider block">المنافس</span>
+                <span class="font-bold text-lg">اللاعب الثاني ⚔️</span>
+            </div>
+            <div class="flex gap-1" id="opponent-cards">
+                </div>
+            <div class="text-right">
+                <span class="text-xs text-slate-400 block">النقاط</span>
+                <span id="opponent-score" class="text-2xl font-bold text-rose-500">0</span>
+            </div>
+        </div>
+
+        <div class="my-6 bg-slate-900/60 rounded-2xl border-2 border-dashed border-slate-800 p-6 flex flex-col items-center justify-center relative min-h-[250px]">
+            <div id="turn-badge" class="absolute top-3 bg-indigo-600 text-xs font-bold px-4 py-1 rounded-full shadow-md animate-pulse">في انتظار اللاعبين..</div>
+            <div id="round-status" class="text-sm font-bold text-emerald-400 mb-4 h-5"></div>
+            
+            <div class="flex gap-8 justify-center items-center w-full">
+                <div class="flex flex-col items-center">
+                    <span class="text-xs text-slate-500 mb-1">ورقة الخصم</span>
+                    <div id="table-opponent-card" class="w-20 h-28 bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center text-2xl shadow-xl"></div>
+                </div>
+                <div class="flex flex-col items-center">
+                    <span class="text-xs text-slate-500 mb-1">ورقتك</span>
+                    <div id="table-my-card" class="w-20 h-28 bg-indigo-950/40 border-2 border-indigo-500/30 rounded-xl flex items-center justify-center text-2xl shadow-xl"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-xl">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <span class="text-xs text-indigo-400 uppercase tracking-wider block">أنت</span>
+                    <span class="font-bold text-lg">اللاعب الأول (الملك) ⭐</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs text-slate-400 block">نقاطك</span>
+                    <span id="my-score" class="text-2xl font-bold text-indigo-500">0</span>
+                </div>
+            </div>
+            <div id="my-hand" class="flex gap-3 justify-center overflow-x-auto py-2">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let myTurn = false;
+
+        // قراءة الروابط الذكية لمعرفة إذا كان هناك رمز غرفة بالرابط
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRoomId = urlParams.get('room');
+        if(urlRoomId) {
+            socket.emit('joinRoom', urlRoomId);
+        }
+
+        // الأزرار
+        document.getElementById('btn-create').addEventListener('click', () => socket.emit('createRoom'));
+        document.getElementById('btn-join').addEventListener('click', () => {
+            const code = document.getElementById('input-room').value.trim();
+            if(code) socket.emit('joinRoom', code);
+        });
+
+        // أحداث السوكيت
+        socket.on('roomCreated', (roomId) => {
+            showScreen('waiting-screen');
+            const gameLink = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+            document.getElementById('room-link').innerText = gameLink;
+            document.getElementById('room-code-display').innerText = roomId;
+            
+            document.getElementById('btn-copy').onclick = () => {
+                navigator.clipboard.writeText(gameLink);
+                alert('📋 تم نسخ رابط الغرفة بنجاح! أرسله لصديقك.');
+            };
+        });
+
+        socket.on('gameStarted', (data) => {
+            showScreen('game-screen');
+        });
+
+        socket.on('nextRound', (activePlayerId) => {
+            myTurn = (activePlayerId === socket.id);
+            const badge = document.getElementById('turn-badge');
+            if(myTurn) {
+                badge.innerText = "دورك الآن! اختر ورقة لرميها 💥";
+                badge.className = "absolute top-3 bg-emerald-600 text-xs font-bold px-4 py-1 rounded-full shadow-md animate-bounce";
+            } else {
+                badge.innerText = "دور الخصم.. يرجى الانتظار 💤";
+                badge.className = "absolute top-3 bg-slate-700 text-xs font-bold px-4 py-1 rounded-full shadow-md";
+            }
+        });
+
+        socket.on('gameState', (state) => {
+            // تحديث النقاط
+            document.getElementById('my-score').innerText = state.myScore;
+            document.getElementById('opponent-score').innerText = state.opponentScore;
+
+            // عرض أوراق يدي
+            const handDiv = document.getElementById('my-hand');
+            handDiv.innerHTML = '';
+            state.myHand.forEach((card, index) => {
+                const cardEl = document.createElement('button');
+                cardEl.className = `w-16 h-24 bg-slate-900 border-2 ${myTurn ? 'border-indigo-500' : 'border-slate-700'} rounded-xl flex flex-col justify-between p-2 card-glow text-right font-bold`;
+                cardEl.disabled = !myTurn;
+                cardEl.innerHTML = `<span class="text-sm">${card.label}</span><span class="text-center text-xl">${card.suit}</span>`;
+                cardEl.onclick = () => {
+                    if(myTurn) {
+                        socket.emit('playCard', index);
+                        myTurn = false;
+                    }
+                };
+                handDiv.appendChild(cardEl);
+            });
+
+            // عرض أوراق الخصم مقلوبة في الأعلى للجمالية
+            const oppHandDiv = document.getElementById('opponent-cards');
+            oppHandDiv.innerHTML = '';
+            for(let i=0; i < state.opponentCardCount; i++) {
+                const hiddenCard = document.createElement('div');
+                hiddenCard.className = "w-8 h-12 bg-gradient-to-br from-slate-700 to-slate-900 border border-slate-600 rounded-md shadow-md";
+                oppHandDiv.appendChild(hiddenCard);
+            }
+
+            // تحديث أوراق الطاولة
+            const myTable = document.getElementById('table-my-card');
+            if(state.myPlayed) {
+                myTable.innerHTML = `<div class="text-center font-bold text-indigo-400"><p class="text-xs">${state.myPlayed.label}</p><p class="text-xl">${state.myPlayed.suit}</p></div>`;
+                myTable.className = "w-20 h-28 bg-slate-900 border-2 border-indigo-500 rounded-xl flex items-center justify-center shadow-xl";
+            } else {
+                myTable.innerHTML = '';
+                myTable.className = "w-20 h-28 bg-slate-950/40 border border-slate-800 rounded-xl flex items-center justify-center shadow-xl";
+            }
+
+            const oppTable = document.getElementById('table-opponent-card');
+            if(state.opponentPlayed) {
+                if(state.opponentPlayed.hidden) {
+                    oppTable.innerHTML = `<span class="text-indigo-500 font-bold">؟</span>`;
+                    oppTable.className = "w-20 h-28 bg-gradient-to-br from-slate-800 to-slate-950 border border-slate-700 rounded-xl flex items-center justify-center text-2xl shadow-xl";
+                } else {
+                    oppTable.innerHTML = `<div class="text-center font-bold text-rose-400"><p class="text-xs">${state.opponentPlayed.label}</p><p class="text-xl">${state.opponentPlayed.suit}</p></div>`;
+                    oppTable.className = "w-20 h-28 bg-slate-900 border-2 border-rose-500 rounded-xl flex items-center justify-center shadow-xl";
+                }
+            } else {
+                oppTable.innerHTML = '';
+                oppTable.className = "w-20 h-28 bg-slate-950/40 border border-slate-800 rounded-xl flex items-center justify-center shadow-xl";
+            }
+        });
+
+        socket.on('roundResult', (data) => {
+            document.getElementById('round-status').innerText = data.msg;
+        });
+
+        socket.on('gameEnded', (winnerMsg) => {
+            alert(`🎉 انتهت اللعبة! \n ${winnerMsg}`);
+            window.location.reload();
+        });
+
+        socket.on('errorMsg', (msg) => {
+            alert(msg);
+            window.location.reload();
+        });
+
+        function showScreen(screenId) {
+            document.getElementById('lobby-screen').classList.add('hidden');
+            document.getElementById('waiting-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById(screenId).classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
